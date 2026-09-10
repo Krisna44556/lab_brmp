@@ -1,0 +1,24 @@
+<?php
+
+namespace App\Models;
+
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Sample extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'sample_request_id',
+        'sample_code',
+        'sample_name',
+        'current_status',
+    ];
+
+    public function sampleRequest()
+    {
+        return $this->belongsTo(SampleRequest::class);
+    }
+}
