@@ -5,6 +5,8 @@
         </h2>
     </x-slot>
 
+    
+
     <!-- Library HTML5 QR Scanner -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -33,6 +35,31 @@
             <!-- Section 2: Tabel Log Sampel Masuk -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-4">Daftar Sampel Masuk untuk Pengujian</h3>
+                
+                <!-- Form Filter Kode Sampel -->
+                <div class="mb-4 bg-white ml-60 rounded-lg shadow-sm ">
+                    <form method="GET" action="{{ url()->current() }}" class="flex items-center gap-3">
+                        
+                        <div class="relative ml-35 flex-1 max-w-md">
+                            <input type="text" 
+                                name="code" 
+                                value="{{ request('code') ?? request('sample_code') }}" 
+                                placeholder="Cari berdasarkan Kode Sampel..." 
+                                class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition">
+                            Cari Kode
+                        </button>
+
+                        @if(request('code') || request('sample_code'))
+                            <a href="{{ url()->current() }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium transition">
+                                Reset
+                            </a>
+                        @endif
+
+                    </form>
+                </div>
                 
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left text-gray-600 border-collapse">
@@ -160,9 +187,15 @@
                     Tutup
                 </button>
             </div>
-
         </div>
     </div>
+
+        <!-- Bagian Bawah Tabel -->
+        <div class="mt-4 px-4 py-2 flex items-center justify-between border-t border-slate-200">
+            {{ $scannedSamples->links() }}
+        </div>
+
+     
 
     <!-- Script JavaScript -->
     <script>

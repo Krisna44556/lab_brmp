@@ -8,7 +8,8 @@ use App\Http\Controllers\DistributorLabController;
 use App\Http\Controllers\UserRequestController;
 use App\Http\Controllers\GuestRequestController;
 use App\Services\WhatsappService;
-use App\Services\ExpeditionController;
+use App\Http\Controllers\ExpeditionController;
+use App\Http\Controllers\SampleRequestController; 
 
 Route::get('/', function () {
     return view('welcome');
@@ -65,8 +66,17 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/user/request/store', [UserRequestController::class, 'store'])->name('user.store_request');
 });
 
+// Route simpan pendaftaran online
+Route::post('/sample-request/store', [SampleRequestController::class, 'store'])->name('sample-request.store');
+
 Route::get('/pengajuan-online', [GuestRequestController::class, 'create'])->name('guest.create_request');
 Route::post('/pengajuan-online', [GuestRequestController::class, 'store'])->name('guest.store_request');
+
+
+Route::get('/tracking', [GuestRequestController::class, 'showTrackingForm'])->name('tracking.index');
+
+// 2. Menerima Form Submit Pencarian (POST)
+Route::post('/tracking', [GuestRequestController::class, 'trackSample'])->name('tracking.search');
 
 // Expedition Routes
 Route::middleware(['auth'])->group(function () {

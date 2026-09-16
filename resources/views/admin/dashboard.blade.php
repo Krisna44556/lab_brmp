@@ -22,6 +22,8 @@
         <a href="{{ route('admin.select-lab') }}" class="bg-blue-600 text-white px-4 py-2 mr-20 rounded text-sm hover:bg-blue-700">+ Input Permohonan Baru</a>
     </div>
 
+ 
+
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             
@@ -40,6 +42,30 @@
             <!-- Tabel Verifikasi Permohonan -->
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
                 <h3 class="text-lg font-bold mb-4">Daftar Permohonan Pengujian</h3>
+
+                 <!-- Form Filter Admin -->
+                    <div class="mb-4 bg-white p-4 rounded-lg shadow-sm">
+                        <form method="GET" action="{{ url()->current() }}" class="flex items-center gap-3">
+                            <div class="relative flex-1 max-w-md">
+                                <input type="text" 
+                                    name="code" 
+                                    value="{{ request('code') }}" 
+                                    placeholder="Cari Kode Req / Pemohon / Kode Sampel..." 
+                                    class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition">
+                                Cari
+                            </button>
+
+                            @if(request('code'))
+                                <a href="{{ url()->current() }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium transition">
+                                    Reset
+                                </a>
+                            @endif
+                        </form>
+                    </div>   
+
                 <table class="min-w-full border-collapse border border-gray-200">
                     <thead>
                         <tr class="bg-gray-100">
@@ -114,10 +140,16 @@
                         @endforelse
                     </tbody>
                 </table>
+                
+                <div class="mt-4 px-2 flex justify-end">
+                    {{ $requests->links() }}
+                </div>
             </div>
 
         </div>
     </div>
+
+
 
 <script>
     setInterval(function() {

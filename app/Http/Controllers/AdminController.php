@@ -8,16 +8,41 @@ use App\Models\User;
 use App\Models\LabService;
 use App\Models\RequestServiceItem;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http; // 1. Tambahkan ini untuk panggil Fonnte API
+use Illuminate\Support\Facades\Schema;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+
 
 class AdminController extends Controller
 {
     // 1. Halaman Utama Dashboard Admin
-    public function index()
+    public function index(Request $request)
     {
-        $requests = SampleRequest::with(['user', 'samples'])->latest()->get();
+        // 1. Inisialisasi Query SampleRequest
+        $query = SampleRequest::with(['user', 'samples']);
+
+        // 2. Filter berdasarkan Kode Request / Kode Sampel / Nama Pemohon jika ada pencarian
+        if ($request->filled('code') || $request->filled('search')) {
+            $search = trim($request->input('code', $request->input('search')));
+
+            $query->where(function ($q) use ($search) {
+                $q->where('request_code', 'LIKE', "%{$search}%")
+                  ->orWhereHas('user', function ($u) use ($search) {
+                      $u->where('name', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('samples', function ($s) use ($search) {
+                      $s->where('sample_code', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        // 3. Paginate 10 data & pertahankan query string di URL
+        $requests = $query->latest()->paginate(5)->appends($request->query());
+
+        // 4. Hitung Stat Counter
         $pendingCount = SampleRequest::where('payment_status', 'pending')->count();
         $verifiedCount = SampleRequest::where('payment_status', 'verified')->count();
 
@@ -35,12 +60,10 @@ class AdminController extends Controller
     {
         $labType = $request->query('lab_type', 'tanah');
         
-        // Jika parameter lab_type kosong, kembalikan ke Step 1
         if (!$labType) {
             return redirect()->route('admin.request.create.step1');
         }
 
-        // Ambil daftar layanan yang terfilter sesuai kategori laboratorium yang dipilih
         $services = LabService::whereRaw('LOWER(lab_category) LIKE ?', ["%{$labType}%"])->get();
 
         return view('admin.create', compact('labType', 'services'));
@@ -61,7 +84,9 @@ class AdminController extends Controller
             'services.required' => 'Pilih minimal satu parameter pengujian!',
         ]);
 
-        DB::transaction(function () use ($request) {
+        $createdRequestCode = null;
+
+        DB::transaction(function () use ($request, &$createdRequestCode) {
             // Simpan / Cari User Pemohon
             $user = User::firstOrCreate(
                 ['phone_number' => $request->phone_number],
@@ -76,12 +101,12 @@ class AdminController extends Controller
             if ($user->name !== $request->applicant_name) {
                 $user->update(['name' => $request->applicant_name]);
             }
-
-            // Hitung Total Biaya Berdasarkan Layanan Terpilih & Jumlah Sampel
+            
+            // Hitung Total Biaya
             $selectedServices = LabService::whereIn('id', $request->services)->get();
             $totalPrice = $selectedServices->sum('price') * $request->sample_quantity;
 
-            // Simpan Header Permohonan Pengujian (SampleRequest)
+            // Simpan Header Permohonan Pengujian
             $sampleRequest = SampleRequest::create([
                 'user_id'         => $user->id,
                 'request_code'    => 'REQ-' . date('Ymd') . '-' . rand(100, 999),
@@ -96,7 +121,9 @@ class AdminController extends Controller
                 'payment_status'  => 'verified',
             ]);
 
-            // Simpan Item Layanan/Parameter Pengujian
+            $createdRequestCode = $sampleRequest->request_code;
+
+            // Simpan Item Layanan
             foreach ($selectedServices as $service) {
                 RequestServiceItem::create([
                     'sample_request_id' => $sampleRequest->id,
@@ -106,7 +133,7 @@ class AdminController extends Controller
                 ]);
             }
 
-            // Generate Sampel Fisik Sesuai Jumlah Sampel
+            // Generate Sampel Fisik
             for ($i = 1; $i <= $request->sample_quantity; $i++) {
                 Sample::create([
                     'sample_request_id' => $sampleRequest->id,
@@ -117,7 +144,29 @@ class AdminController extends Controller
             }
         });
 
-        return redirect()->route('admin.dashboard')->with('success', 'Permohonan Pengujian Berhasil Disimpan!');
+        // 2. KIRIM WHATSAPP OTOMATIS VIA FONNTE
+        try {
+            $message = "Halo *" . $request->applicant_name . "*,\n\n";
+            $message .= "Permohonan pengujian sampel Anda telah *BERHASIL TERDAFTAR* di Admin BRMP Laboratorium.\n\n";
+            $message .= "📌 *Detail Permohonan:*\n";
+            $message .= "• Kode Permohonan: *" . $createdRequestCode . "*\n";
+            $message .= "• Jenis Sampel: " . $request->sample_type . "\n";
+            $message .= "• Jumlah Sampel: " . $request->sample_quantity . "\n\n";
+            $message .= "Anda dapat melacak status progres sampel Anda secara real-time melalui link berikut:\n";
+            $message .= url('/tracking') . "?code=" . $createdRequestCode . "\n\n";
+            $message .= "Terima kasih,\n*BRMP Laboratorium*";
+
+            Http::withHeaders([
+                'Authorization' => env('FONNTE_TOKEN', 'TOKEN_FONNTE_KAMU_DISINI'),
+            ])->post('https://api.fonnte.com/send', [
+                'target'  => $request->phone_number,
+                'message' => $message,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Fonnte WA Error saat storeRequest: ' . $e->getMessage());
+        }
+
+        return redirect()->route('admin.dashboard')->with('success', 'Permohonan Pengujian Berhasil Disimpan & WA Notifikasi Terkirim!');
     }
 
     // 5. Detail Request
@@ -130,13 +179,8 @@ class AdminController extends Controller
     // 6. Generate QR Code
     public function generateQrCode($id)
     {
-        // Load permohonan beserta relasi user, items, dan samples
         $sampleRequest = SampleRequest::with(['user', 'items.labService', 'samples'])->findOrFail($id);
-        
-        // Ambil sampel pertama (jika ada)
         $sample = $sampleRequest->samples->first();
-
-        // Utamakan kode sampel unik (misal: SMP-XXXX), jika tidak ada pakai request_code
         $qrCodeData = $sample?->sample_code ?? $sampleRequest->request_code;
 
         return view('admin.qr_code', compact('sampleRequest', 'sample', 'qrCodeData'));
@@ -163,10 +207,7 @@ class AdminController extends Controller
     // 8. Update Status Progres Sampel
     public function updateStatus(Request $request, $id)
     {
-        // 1. Format input status
         $statusInput = strtolower(str_replace(' ', '_', trim($request->status)));
-
-        // 2. Cari sampel menggunakan Model Eloquent
         $sample = Sample::with(['sampleRequest.user'])->find($id);
 
         if (!$sample) {
@@ -176,7 +217,6 @@ class AdminController extends Controller
             return redirect()->back()->with('error', 'Data sampel tidak ditemukan.');
         }
 
-        // 3. Update status sampel & request di database
         $sampleData = ['updated_at' => now()];
         if (Schema::hasColumn('samples', 'current_status')) {
             $sampleData['current_status'] = $statusInput;
@@ -207,29 +247,6 @@ class AdminController extends Controller
             DB::table('samples')->where('id', $id)->update($sampleData);
         }
 
-        // 4. Proses Notifikasi WhatsApp via Service
-        $dataWA = DB::table('samples')
-        ->leftJoin('sample_requests', 'samples.sample_request_id', '=', 'sample_requests.id')
-        ->leftJoin('users', 'sample_requests.user_id', '=', 'users.id')
-        ->where('samples.id', $id)
-        ->select(
-            'samples.id as sample_id',
-            'samples.sample_code',
-            'sample_requests.id as req_id',
-            'sample_requests.phone_number as req_phone',
-            'users.id as user_id',
-            'users.phone as user_phone'
-        )
-        ->first();
-
-    // Hentikan proses & tampilkan isi variabel di layar browser
-    dd([
-        'sample_id_yang_diupdate' => $id,
-        'data_di_database'        => $dataWA,
-        'nomor_terdeteksi'        => $dataWA?->req_phone ?? $dataWA?->user_phone ?? 'TIDAK DITEMUKAN (NULL)'
-    ]);
-    
-        // 5. Response
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
@@ -239,17 +256,15 @@ class AdminController extends Controller
 
         return redirect()->back()->with('success', 'Status sampel berhasil diperbarui!');
     }
+
     // 9. API Endpoint Status Realtime
     public function statusRealtime()
     {
-        // Ambil data request beserta relasi samples
         $requests = SampleRequest::with('samples')->get();
 
         $data = $requests->map(function ($req) {
-            // Ambil sampel pertama
             $sample = $req->samples->first();
 
-            // Utamakan current_status dari sampel, lalu dari request
             $rawStatus = $sample?->current_status 
                     ?? $sample?->status 
                     ?? $req->current_status 

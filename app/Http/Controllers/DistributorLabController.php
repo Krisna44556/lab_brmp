@@ -6,22 +6,26 @@ use App\Models\Sample;
 use App\Models\SampleLog;
 use App\Models\SampleIssue;
 use App\Models\SampleRequest;
+use App\Models\LabService;
+use App\Services\WhatsappService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\LabService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use App\Services\WhatsappService;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class DistributorLabController extends Controller
 {
-    // 1. Tampilkan Halaman Dashboard Distributor
-    public function index()
+
+    public function index(Request $request)
     {
         $scannedIds = session()->get('scanned_sample_ids', []);
 
+        $searchCode = trim($request->input('code', $request->input('sample_code', $request->input('search'))));
+
         if (!empty($scannedIds)) {
-            $scannedSamples = DB::table('samples')
+            // 1. Inisialisasi query
+            $query = DB::table('samples')
                 ->leftJoin('sample_requests', 'samples.sample_request_id', '=', 'sample_requests.id')
                 ->leftJoin('users', 'sample_requests.user_id', '=', 'users.id')
                 ->whereIn('samples.id', $scannedIds)
@@ -31,12 +35,40 @@ class DistributorLabController extends Controller
                     'samples.sample_name',
                     'samples.current_status',
                     'users.name as applicant_name'
-                )
-                ->orderBy('samples.updated_at', 'desc')
-                ->get();
-        } else {
-            $scannedSamples = collect();
+                );
+
+                        // LOGIKA FILTER:
+                if (!empty($searchCode)) {
+                    // Jika user melakukan pencarian kode, cari ke seluruh database
+                    $query->where(function($q) use ($searchCode) {
+                        $q->where('samples.sample_code', 'LIKE', "%{$searchCode}%")
+                        ->orWhere('samples.sample_name', 'LIKE', "%{$searchCode}%")
+                        ->orWhere('users.name', 'LIKE', "%{$searchCode}%");
+                    });
+                } else {
+                    // Jika tidak sedang mencari, tampilkan data dari session hasil scan saja
+                    if (!empty($scannedIds)) {
+                        $query->whereIn('samples.id', $scannedIds);
+                    } else {
+                        $query->whereRaw('1 = 0'); // Return kosong jika session scan masih kosong
+                    }
+                }
+
+                $allItems = $query->orderBy('samples.updated_at', 'desc')->get();
         }
+
+        // 4. Logika Pagination 10 data
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $perPage = 5;
+        $currentPageItems = $allItems->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $scannedSamples = new LengthAwarePaginator(
+            $currentPageItems,
+            $allItems->count(),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         return view('distributor_lab.dashboard', compact('scannedSamples'));
     }
@@ -249,19 +281,23 @@ class DistributorLabController extends Controller
 
                         $readableStatus = $statusLabels[$statusInput] ?? ucfirst(str_replace('_', ' ', $statusInput));
 
+                        // Format URL Tracking untuk User (sesuaikan domain/URL aplikasi kamu)
+                        $trackingUrl = url('/tracking?code=' . $sampleCode);
+
                         $pesanWA  = "Halo, *{$applicantName}*!\n\n";
                         $pesanWA .= "Pemberitahuan pembaruan status sampel Anda:\n";
-                        $pesanWA .= "*Kode Sampel:* {$sampleCode}\n";
+                        $pesanWA .= "*Kode Sampel:* `{$sampleCode}`\n";
                         $pesanWA .= "*Status Terbaru:* *{$readableStatus}*\n\n";
 
                         if (in_array($statusInput, ['completed', 'selesai'])) {
-                            $pesanWA .= "Laporan Hasil Uji (LHU) sampel Anda telah selesai. Silakan cek dashboard aplikasi untuk mengunduh hasil.\n\n";
+                            $pesanWA .= "Laporan Hasil Uji (LHU) sampel Anda telah selesai. Silakan cek/unduh hasil melalui link di bawah ini:\n";
                         } elseif (in_array($statusInput, ['received', 'diterima', 'in_progress', 'sedang_diuji'])) {
-                            $pesanWA .= "Sampel Anda saat ini sedang dalam proses pengujian di laboratorium kami.\n\n";
+                            $pesanWA .= "Sampel Anda saat ini sedang dalam proses pengujian di laboratorium kami.\n";
                         }
 
+                        $pesanWA .= "\n🔍 *Lacak/Cek Detail Sampel Anda:* \n{$trackingUrl}\n\n";
                         $pesanWA .= "Terima kasih telah menggunakan layanan laboratorium kami. 🙏\n_Pesan ini dikirim otomatis oleh sistem._";
-
+                        
                         WhatsappService::sendMessage($userPhone, $pesanWA);
                     }
                 }
@@ -351,7 +387,7 @@ class DistributorLabController extends Controller
             ->orderByRaw("CASE WHEN LOWER(samples.current_status) IN ('registered', 'pending') THEN 1 ELSE 2 END")
             ->orderBy('samples.id', 'asc')
             ->select(
-                'samples.id',
+                'samples.id',   
                 'samples.sample_code',
                 'samples.sample_name',
                 'samples.current_status',
