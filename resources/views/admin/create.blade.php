@@ -1,151 +1,300 @@
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight ml-10">
-            {{ __('Input Permohonan Pengujian ') }}
-        </h2>
+    <x-slot name="header"   >
+        <div class="flex justify-between items-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="font-bold text-2xl text-gray-800 leading-tight flex items-center gap-2">
+                <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Input Permohonan Pengujian
+            </h2>
+            <a href="{{ route('admin.select-lab') }}" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-xl text-sm transition-all shadow-sm border border-gray-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Kembali Pilih Lab
+            </a>
+        </div>
     </x-slot>
-    <div class="flex justify-end ">
-    <button class="bg-blue-600 mr-20 mt-6 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-md shadow">
-        <a href="{{ route('admin.select-lab') }}" class="text-sm text-white font-medium">Kembali Pilih Lab</a>
-    </button>
-    </div>
-    <div class="py-6">
+
+    <div class="py-8 bg-gray-50/50 min-h-screen">
         <div class="max-w-5xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                <!-- Header & Navigasi Kembali -->
-                <div class="mb-6 flex justify-between items-center border-b pb-4">
-                    <div>
-                        
-                        <h3 class="text-xl font-bold text-gray-800 mt-1">
-                            Laboratorium Terpilih
-                            <span class="text-blue-600 uppercase">{{ $labType }}</span>
-                        </h3>
+            
+            <!-- Banner Header Lab -->
+            <div class="bg-gradient-to-r from-green-600 to-green-800 rounded-2xl p-6 text-white shadow-lg mb-8 flex justify-between items-center">
+                <div>
+                    <span class="text-white text-3xl font-bold uppercase tracking-wider px-1 py-1">Laboratorium Terpilih</span>
+                    <h1 class="text-3xl font-extrabold mt-1 tracking-tight uppercase">{{ $labType }}</h1>
+                </div>
+                <div class="hidden sm:block text-right">
+                    <p class="text-green-100 text-sm">Pastikan data sampel & parameter</p>
+                    <p class="text-green-100 text-sm">diisi dengan benar sebelum disimpan.</p>
+                </div>
+            </div>
+
+            <!-- Validation Errors -->
+            @if ($errors->any())
+                <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl shadow-sm">
+                    <div class="flex items-center gap-2 text-red-800 font-bold mb-1">
+                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Terjadi Kesalahan Input!
+                    </div>
+                    <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <form action="{{ route('admin.request.store') }}" method="POST" id="form-pendaftaran" class="space-y-8">
+                @csrf
+                <input type="hidden" name="lab_type" value="{{ $labType }}">
+
+                <!-- 1. INFORMASI PEMOHON -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-3">
+                        <span class="w-7 h-7 text-xl text-green-600 flex items-center justify-center font-extrabold">1</span>
+                        Informasi Pemohon
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Nama Pemohon <span class="text-red-500">*</span></label>
+                            <input type="text" name="applicant_name" class="w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-sm shadow-sm py-2.5 px-3.5" placeholder="Contoh: Budi Santoso" value="{{ old('applicant_name') }}" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Nomor WhatsApp / HP <span class="text-red-500">*</span></label>
+                            <input type="text" name="phone_number" class="w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-sm shadow-sm py-2.5 px-3.5" placeholder="08xxxxxxxxxx" value="{{ old('phone_number') }}" required>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Pesan Validation Error -->
-                @if ($errors->any())
-                    <div class="mb-4 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded">
-                        <strong class="font-bold">Terjadi Kesalahan!</strong>
-                        <ul class="mt-2 list-disc list-inside text-sm">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
-
-                <form action="{{ route('admin.request.store') }}" method="POST">
-                    @csrf
-                    <input type="hidden" name="lab_type" value="{{ $labType }}">
-
-                    <!-- Informasi Pemohon -->
-                    <h4 class="text-md font-semibold text-gray-700 mb-3 border-b pb-1">1. Informasi Pemohon & Sampel</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- 2. ALAMAT ASAL SAMPEL -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-3">
+                        <span class="w-7 h-7 text-xl text-green-600 flex items-center justify-center font-extrabold">2</span>
+                        Alamat Asal Sampel <span class="text-xs font-normal text-gray-400">(Opsional)</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Nama Pemohon *</label>
-                            <input type="text" name="applicant_name" value="{{ old('applicant_name') }}" required class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <input type="text" name="village" class="w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-sm py-2.5" placeholder="Desa / Kelurahan">
                         </div>
-
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Nomor WhatsApp / HP *</label>
-                            <input type="text" name="phone_number" value="{{ old('phone_number') }}" required placeholder="08xxxxxxxxxx" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <input type="text" name="district" class="w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-sm py-2.5" placeholder="Kecamatan">
                         </div>
-
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Jenis Sampel *</label>
-                            <input type="text" name="sample_type" value="{{ old('sample_type') }}" placeholder="Contoh: Tanah Regosol, Pupuk NPK, Air" required class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <input type="text" name="regency" class="w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-sm py-2.5" placeholder="Kabupaten / Kota">
                         </div>
-
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Jumlah Sampel (Jumlah Wadah) *</label>
-                            <input type="number" id="sample_quantity" name="sample_quantity" value="{{ old('sample_quantity', 1) }}" min="1" required class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <input type="text" name="province" class="w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-sm py-2.5" placeholder="Provinsi">
                         </div>
                     </div>
+                </div>
 
-                    <!-- Informasi Lokasi -->
-                    <h4 class="text-md font-semibold text-gray-700 mb-3 border-b pb-1">2. Alamat Asal Sampel (Opsional)</h4>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <!-- 3. DETAIL WADAH & PARAMETER PENGUJIAN -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b pb-4">
                         <div>
-                            <label class="block text-xs text-gray-600">Desa/Kelurahan</label>
-                            <input type="text" name="village" value="{{ old('village') }}" class="mt-1 w-full rounded-md border-gray-300 text-sm">
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                               <span class="w-7 h-7 text-xl text-green-600 flex items-center justify-center font-extrabold">3</span>
+                                Rincian Wadah & Parameter Pengujian
+                            </h3>
+                            <p class="text-xs text-gray-500 mt-1 ml-9">Tambahkan wadah jika pemohon membawa beberapa fisik sampel berbeda.</p>
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-600">Kecamatan</label>
-                            <input type="text" name="district" value="{{ old('district') }}" class="mt-1 w-full rounded-md border-gray-300 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600">Kabupaten/Kota</label>
-                            <input type="text" name="regency" value="{{ old('regency') }}" class="mt-1 w-full rounded-md border-gray-300 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600">Provinsi</label>
-                            <input type="text" name="province" value="{{ old('province') }}" class="mt-1 w-full rounded-md border-gray-300 text-sm">
-                        </div>
-                    </div>
-
-                    <!-- Parameter Pengujian -->
-                    <h4 class="text-md font-semibold text-gray-700 mb-3 border-b pb-1">3. Pilih Parameter Pengujian ({{ ucfirst($labType) }})</h4>
-                    <div class="mb-6">
-                        @if(!isset($services) || $services->isEmpty())
-                            <p class="text-sm text-yellow-600 italic">Belum ada layanan parameter yang terdaftar untuk laboratorium ini di database.</p>
-                        @else
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-2 border rounded-md bg-gray-50">
-                                @foreach($services as $service)
-                                    <label class="flex items-center space-x-3 p-2 bg-white rounded border hover:bg-blue-50 cursor-pointer">
-                                        <input type="checkbox" name="services[]" value="{{ $service->id }}" data-price="{{ $service->price }}" class="service-checkbox rounded text-blue-600 focus:ring-blue-500">
-                                        <div class="flex-1">
-                                            <span class="block text-sm font-medium text-gray-800">{{ $service->service_name }}</span>
-                                            <span class="block text-xs text-gray-500">Rp {{ number_format($service->price, 0, ',', '.') }}</span>
-                                        </div>
-                                    </label>
-                                @endforeach
-                            </div>
-                        @endif
-                    </div>
-
-                    <!-- Ringkasan Biaya & Tombol Submit -->
-                    <div class="flex items-center justify-between border-t pt-4 bg-gray-50 p-4 rounded-md">
-                        <div>
-                            <span class="text-sm text-gray-600">Estimasi Total Biaya:</span>
-                            <div id="total-price-display" class="text-2xl font-bold text-blue-600">Rp 0</div>
-                        </div>
-
-                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 font-semibold shadow">
-                            Simpan & Terbitkan Permohonan
+                        <button type="button" id="btn-tambah-wadah" class="inline-flex items-center gap-2 bg-green-50 hover:bg-green-100 text-green-600 font-bold px-4 py-2 rounded-xl text-sm transition-all border border-green-200 shadow-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            Tambah Wadah Sampel
                         </button>
                     </div>
-                </form>
 
-            </div>
+                    <!-- CONTAINER WADAH DINAMIS -->
+                    <div id="samples-container" class="space-y-6">
+                        
+                        <!-- WADAH #1 (DEFAULT TEMPLATE) -->
+                        <div class="sample-item bg-gray-50/70 rounded-2xl p-5 border border-gray-200 shadow-sm transition-all" data-index="0">
+                            <div class="flex justify-between items-center mb-4">
+                                <span class="sample-title font-extrabold text-green-700 px-1 py-1 text-xl uppercase tracking-wider">Wadah 1</span>
+                                <button type="button" class="btn-hapus-wadah hidden inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-all border border-red-200">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    Hapus
+                                </button>
+                            </div>
+
+                            <!-- Input Nama Sampel Wadah -->
+                            <div class="mb-5">
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Nama / Identitas Sampel Wadah Ini <span class="text-red-500">*</span></label>
+                                <input type="text" name="samples[0][sample_name]" class="w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-sm bg-white py-2.5 px-3.5 shadow-sm" placeholder="Contoh: Tanah Regosol Blok A / Air Minum Kantin / Pupuk NPK" required>
+                            </div>
+
+                            <!-- Filter Search Parameter -->
+                            <div class="mb-3">
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Pilih Parameter Pengujian Khusus Wadah Ini <span class="text-red-500">*</span></label>
+                                <div class="relative">
+                                    <input type="text" class="search-service-input w-full rounded-xl border-gray-200 focus:border-green-500 focus:ring-green-500 text-xs bg-white pl-9 py-2" placeholder="Ketik untuk memfilter nama parameter...">
+                                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </div>
+                            </div>
+
+                            <!-- List Parameter Grid Checkbox -->
+                            <div class="services-wrapper grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto p-1 pr-2">
+                                @foreach($services as $service)
+                                    <div class="service-card bg-white p-3 rounded-xl border border-gray-200 hover:border-green-300 hover:shadow-sm transition-all">
+                                        <label class="flex items-center justify-between cursor-pointer group">
+                                            <div class="flex items-center gap-3">
+                                                <input type="checkbox" 
+                                                       name="samples[0][services][]" 
+                                                       value="{{ $service->id }}" 
+                                                       id="service_0_{{ $service->id }}"
+                                                       data-price="{{ $service->price }}"
+                                                       class="service-checkbox w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-green-500">
+                                                <span class="service-name text-xs font-semibold text-gray-700 group-hover:text-green-600 transition-colors">{{ $service->service_name }}</span>
+                                            </div>
+                                            <span class="text-xs font-extrabold text-green-600 bg-green-50 px-2.5 py-1 rounded-lg border border-green-100 whitespace-nowrap">
+                                                Rp {{ number_format($service->price, 0, ',', '.') }}
+                                            </span>
+                                        </label>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- BOTTOM BAR: TOTAL BIAYA & BUTTON SUBMIT -->
+                <div class="text-white rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-6">
+                    <div>
+                        
+                        <span id="grand-total-text" class="text-3xl font-black text-emerald-400">Rp 0</span>
+                    </div>
+                    <button type="submit" class="w-32 sm:w-auto inline-flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold px-8 py-4 rounded-xl   text-base transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-95">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        Simpan Permohonan Pengujian
+                    </button>
+                </div>
+
+            </form>
         </div>
     </div>
 
-    <!-- JavaScript Real-Time Cost Calculation -->
+    <!-- JAVASCRIPT MULTI-SAMPLE -->
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const checkboxes = document.querySelectorAll('.service-checkbox');
-            const quantityInput = document.getElementById('sample_quantity');
-            const totalPriceDisplay = document.getElementById('total-price-display');
+    document.addEventListener('DOMContentLoaded', function () {
+        let sampleIndex = 1;
+        const container = document.getElementById('samples-container');
+        const btnTambah = document.getElementById('btn-tambah-wadah');
+        const grandTotalText = document.getElementById('grand-total-text');
 
-            function calculateTotal() {
-                let unitTotal = 0;
-                checkboxes.forEach(cb => {
-                    if (cb.checked) {
-                        unitTotal += parseFloat(cb.getAttribute('data-price')) || 0;
+        // 1. Kalkulasi Total Biaya
+        function hitungTotalBiaya() {
+            let grandTotal = 0;
+            const checkedBoxes = container.querySelectorAll('.service-checkbox:checked');
+
+            checkedBoxes.forEach(cb => {
+                const price = parseFloat(cb.getAttribute('data-price')) || 0;
+                grandTotal += price;
+            });
+
+            if (grandTotalText) {
+                grandTotalText.innerText = 'Rp ' + grandTotal.toLocaleString('id-ID');
+            }
+        }
+
+        // 2. Update Penomoran Wadah & Tombol Hapus
+        function updateSampleState() {
+            const items = container.querySelectorAll('.sample-item');
+            items.forEach((item, index) => {
+                const title = item.querySelector('.sample-title');
+                if (title) title.innerText = `Wadah / Sampel #${index + 1}`;
+
+                const btnHapus = item.querySelector('.btn-hapus-wadah');
+                if (btnHapus) {
+                    if (items.length === 1) {
+                        btnHapus.classList.add('hidden');
+                    } else {
+                        btnHapus.classList.remove('hidden');
+                    }
+                }
+            });
+        }
+
+        // 3. Tambah Wadah Baru
+        btnTambah.addEventListener('click', function (e) {
+            e.preventDefault();
+            
+            const firstSample = container.querySelector('.sample-item');
+            if (!firstSample) return;
+
+            const newSample = firstSample.cloneNode(true);
+            newSample.setAttribute('data-index', sampleIndex);
+
+            // Reset Nama Sampel
+            const nameInput = newSample.querySelector('input[type="text"]');
+            if (nameInput) {
+                nameInput.name = `samples[${sampleIndex}][sample_name]`;
+                nameInput.value = '';
+            }
+
+            // Reset Search Filter
+            const searchInput = newSample.querySelector('.search-service-input');
+            if (searchInput) searchInput.value = '';
+
+            // Reset Checkbox & ID
+            const checkboxes = newSample.querySelectorAll('.service-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+                cb.name = `samples[${sampleIndex}][services][]`;
+                
+                const serviceId = cb.value;
+                const newId = `service_${sampleIndex}_${serviceId}`;
+                cb.id = newId;
+
+                const label = cb.closest('label');
+                if (label) label.setAttribute('for', newId);
+
+                const card = cb.closest('.service-card');
+                if (card) card.style.display = '';
+            });
+
+            container.appendChild(newSample);
+            sampleIndex++;
+            updateSampleState();
+            hitungTotalBiaya();
+        });
+
+        // 4. Delegasi Event (Live Search, Hapus, & Checkbox)
+        container.addEventListener('input', function (e) {
+            if (e.target.classList.contains('search-service-input')) {
+                const filter = e.target.value.toLowerCase();
+                const sampleItem = e.target.closest('.sample-item');
+                const serviceCards = sampleItem.querySelectorAll('.service-card');
+
+                serviceCards.forEach(card => {
+                    const nameText = card.querySelector('.service-name');
+                    if (nameText) {
+                        const name = nameText.innerText.toLowerCase();
+                        card.style.display = name.includes(filter) ? '' : 'none';
                     }
                 });
-
-                const quantity = parseInt(quantityInput.value) || 1;
-                const grandTotal = unitTotal * quantity;
-
-                totalPriceDisplay.textContent = 'Rp ' + grandTotal.toLocaleString('id-ID');
-            }
-
-            checkboxes.forEach(cb => cb.addEventListener('change', calculateTotal));
-            if (quantityInput) {
-                quantityInput.addEventListener('input', calculateTotal);
             }
         });
+
+        container.addEventListener('change', function (e) {
+            if (e.target.classList.contains('service-checkbox')) {
+                hitungTotalBiaya();
+            }
+        });
+
+        container.addEventListener('click', function (e) {
+            const btnHapus = e.target.closest('.btn-hapus-wadah');
+            if (btnHapus) {
+                e.preventDefault();
+                const sampleItem = btnHapus.closest('.sample-item');
+                if (sampleItem) {
+                    sampleItem.remove();
+                    updateSampleState();
+                    hitungTotalBiaya();
+                }
+            }
+        });
+
+        updateSampleState();
+        hitungTotalBiaya();
+    });
     </script>
 </x-app-layout>

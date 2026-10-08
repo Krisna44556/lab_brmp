@@ -5,8 +5,6 @@
         </h2>
     </x-slot>
 
-    
-
     <!-- Library HTML5 QR Scanner -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -24,8 +22,8 @@
                 
                 <div id="reader" class="mx-auto max-w-md border rounded-lg overflow-hidden bg-gray-50 mb-4"></div>
                 
-                <div class="flex justify-center items-center gap-2">
-                    <input type="text" id="manual_code" placeholder="Atau ketik Kode Sampel manual..." class="text-sm rounded-md border-gray-300 w-64 focus:border-blue-500 focus:ring-blue-500">
+                <div class="flex justify-center items-center gap-2 flex-wrap">
+                    <input type="text" id="manual_code" placeholder="Atau ketik Kode Sampel manual..." class="text-sm rounded-md border-gray-300 w-full sm:w-64 focus:border-blue-500 focus:ring-blue-500">
                     <button type="button" onclick="triggerManualScan()" class="bg-gray-800 text-white px-4 py-2 rounded-md text-sm hover:bg-gray-700 transition">
                         Scan & Tambah
                     </button>
@@ -34,32 +32,33 @@
 
             <!-- Section 2: Tabel Log Sampel Masuk -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-lg font-bold text-gray-800 mb-4">Daftar Sampel Masuk untuk Pengujian</h3>
-                
-                <!-- Form Filter Kode Sampel -->
-                <div class="mb-4 bg-white ml-60 rounded-lg shadow-sm ">
-                    <form method="GET" action="{{ url()->current() }}" class="flex items-center gap-3">
-                        
-                        <div class="relative ml-35 flex-1 max-w-md">
-                            <input type="text" 
-                                name="code" 
-                                value="{{ request('code') ?? request('sample_code') }}" 
-                                placeholder="Cari berdasarkan Kode Sampel..." 
-                                class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Daftar Sampel Masuk untuk Pengujian</h3>
+                    
+                    <!-- Form Filter Kode Sampel (Margin diperbaiki agar responsif) -->
+                        <div class="mb-4 bg-white p-4 rounded-lg shadow-sm">
+                            <form method="POST" action="{{ url()->current() }}" class="flex items-center gap-3">
+                                <div class="relative flex-1 max-w-md">
+                                 <input type="text" 
+                                    name="code" 
+                                    value="{{ request('code') }}" 
+                                    placeholder="Cari Kode Sampel..." 
+                                    class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
 
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition">
-                            Cari Kode
-                        </button>
+                                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition">
+                                    Cari
+                                </button>
 
-                        @if(request('code') || request('sample_code'))
-                            <a href="{{ url()->current() }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium transition">
-                                Reset
-                            </a>
-                        @endif
-
-                    </form>
+                                @if(request('code'))
+                                <a href="{{ url()->current() }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium transition">
+                                    Reset
+                                </a>
+                                 @endif
+                            </form>
+                        </div>   
                 </div>
+               
                 
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left text-gray-600 border-collapse">
@@ -72,57 +71,96 @@
                                 <th scope="col" class="px-4 py-3 text-center">Aksi Progress</th>
                             </tr>
                         </thead>
-                        <tbody id="sample-table-body" class="divide-y divide-gray-200">
-                            @forelse($scannedSamples as $sample)
-                                <tr id="sample-row-{{ $sample->id }}" class="hover:bg-gray-50">
-                                    <td class="px-4 py-3 font-semibold text-gray-900">{{ $sample->sample_code }}</td>
-                                    <td class="px-4 py-3">{{ $sample->sample_name }}</td>
-                                    <td class="px-4 py-3">{{ $sample->applicant_name ?? '-' }}</td>
-                                    <td class="px-4 py-3">
-                                        @php
-                                            $status = strtolower($sample->current_status);
-                                            $badgeClass = match($status) {
-                                                'received', 'diterima' => 'bg-blue-100 text-blue-800',
-                                                'in_progress', 'sedang_diuji' => 'bg-yellow-100 text-yellow-800',
-                                                'completed', 'selesai' => 'bg-green-100 text-green-800',
-                                                'issue' => 'bg-red-100 text-red-800',
-                                                default => 'bg-gray-100 text-gray-800',
-                                            };
-                                            $statusLabel = match($status) {
-                                                'received', 'diterima' => 'Diterima di Lab',
-                                                'in_progress', 'sedang_diuji' => 'In Progress',
-                                                'completed', 'selesai' => 'Completed',
-                                                'issue' => 'Ada Kendala',
-                                                default => ucfirst(str_replace('_', ' ', $status)),
-                                            };
-                                        @endphp
-                                        <span id="status-badge-{{ $sample->id }}" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $badgeClass }}">
-                                            {{ $statusLabel }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <select onchange="updateSampleStatus({{ $sample->id }}, this.value)" class="text-xs rounded border-gray-300 py-1 px-2 focus:ring-blue-500 focus:border-blue-500">
-                                                <option value="" disabled selected>-- Ubah Status --</option>
-                                                <option value="received" {{ in_array($status, ['received', 'diterima']) ? 'selected' : '' }}>Received (Diterima)</option>
-                                                <option value="in_progress" {{ in_array($status, ['in_progress', 'sedang_diuji']) ? 'selected' : '' }}>In Progress (Pengujian)</option>
-                                                <option value="completed" {{ in_array($status, ['completed', 'selesai']) ? 'selected' : '' }}>Completed (Selesai)</option>
-                                                <option value="issue" {{ $status == 'issue' ? 'selected' : '' }}>Ada Kendala (Issue)</option>
-                                            </select>
-                                            <button type="button" onclick="showDetailModal({{ $sample->id }})" class="px-3 py-1 text-xs border border-gray-300 text-gray-700 rounded hover:bg-gray-100">
-                                                Detail
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr id="empty-row">
-                                    <td colspan="5" class="px-4 py-8 text-center text-gray-500 italic">Belum ada sampel yang di-scan.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
+<tbody id="sample-table-body" class="divide-y divide-gray-200">
+    @forelse($scannedSamples as $sample)
+    <tr class="border-b hover:bg-gray-50" id="sample-row-{{ $sample->id }}">
+        <!-- KODE SAMPEL WADAH -->
+        <td class="px-4 py-3 font-semibold text-gray-900">
+            <div>{{ $sample->sample_code }}</div>
+            
+            {{-- Badge jika ada wadah lain dalam 1 request --}}
+            @if($sample->total_samples_in_request > 1)
+                <div class="mt-0.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                        +{{ $sample->total_samples_in_request - 1 }} wadah lain
+                    </span>
+                </div>
+            @endif
+        </td>
+
+        <!-- JENIS / NAMA SAMPEL (PERBAIKAN DISINI) -->
+        <td class="px-4 py-3 text-gray-800 font-medium">
+            {{ $sample->sample_type_name ?? $sample->sample_name ?? '-' }}
+        </td>
+
+        <!-- NAMA PEMOHON -->
+        <td class="px-4 py-3 text-gray-600">
+            {{ $sample->applicant_name }}
+        </td>
+
+        <!-- STATUS SAMPEL (WARNA DINAMIS PER WADAH) -->
+        <td class="px-4 py-3">
+            @php
+                $statusClasses = [
+                    'received'    => 'bg-blue-100 text-blue-800',
+                    'diterima'    => 'bg-blue-100 text-blue-800',
+                    'in_progress' => 'bg-amber-100 text-amber-800',
+                    'completed'   => 'bg-emerald-100 text-emerald-800',
+                    'issue'       => 'bg-rose-100 text-rose-800',
+                ];
+                $currentStatus = strtolower($sample->current_status ?? 'received');
+                $badgeClass = $statusClasses[$currentStatus] ?? 'bg-gray-100 text-gray-800';
+            @endphp
+
+            <span id="status-badge-{{ $sample->id }}" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $badgeClass }}">
+                {{ ucfirst(str_replace('_', ' ', $sample->current_status)) }}
+            </span>
+        </td>
+
+        <!-- AKSI PROGRESS STATUS PER WADAH -->
+        <td class="px-4 py-3 text-center">
+            <div class="flex items-center justify-center gap-2">
+                <select id="status-select-{{ $sample->id }}" class="text-xs rounded border-gray-300 py-1 px-2 focus:ring-blue-500 focus:border-blue-500" onchange="updateSampleStatus({{ $sample->id }}, this.value)">
+                    <option value="received" {{ $sample->current_status == 'received' ? 'selected' : '' }}>Received (Diterima)</option>
+                    <option value="in_progress" {{ $sample->current_status == 'in_progress' ? 'selected' : '' }}>In Progress (Pengujian)</option>
+                    <option value="completed" {{ $sample->current_status == 'completed' ? 'selected' : '' }}>Completed (Selesai)</option>
+                    <option value="issue" {{ $sample->current_status == 'issue' ? 'selected' : '' }}>Ada Kendala (Issue)</option>
+                </select>
+                <button type="button" onclick="showDetailModal({{ $sample->id }})" class="px-3 py-1 text-xs border border-gray-300 text-gray-700 rounded hover:bg-gray-100 font-medium transition-colors">
+                    Detail
+                </button>
+            </div>
+        </td>
+    </tr>
+    @empty
+    <tr id="empty-row">
+        <td colspan="5" class="px-4 py-6 text-center text-gray-500">
+            Belum ada sampel yang discan atau diterima di lab.
+        </td>
+    </tr>
+    @endforelse
+</tbody>
                     </table>
                 </div>
+
+                <!-- Pagination Bagian Bawah Tabel -->
+                <div class="mt-4 flex flex-col md:flex-row items-center justify-between px-4 py-3 bg-white border-t border-gray-200 rounded-b-lg">
+                    <!-- Informasi Data -->
+                    <div class="mb-2 md:mb-0 text-sm text-gray-600">
+                        Menampilkan 
+                        <span class="font-semibold">{{ $scannedSamples->firstItem() ?? 0 }}</span> 
+                        sampai 
+                        <span class="font-semibold">{{ $scannedSamples->lastItem() ?? 0 }}</span> 
+                        dari 
+                        <span class="font-semibold">{{ $scannedSamples->total() }}</span> 
+                        data sampel
+                    </div>
+
+                    <!-- Tombol Halaman / Link Paging -->
+                    <div>
+                        {{ $scannedSamples->appends(request()->query())->links() }}
+                    </div>
+                </div>  
             </div>
 
         </div>
@@ -190,13 +228,6 @@
         </div>
     </div>
 
-        <!-- Bagian Bawah Tabel -->
-        <div class="mt-4 px-4 py-2 flex items-center justify-between border-t border-slate-200">
-            {{ $scannedSamples->links() }}
-        </div>
-
-     
-
     <!-- Script JavaScript -->
     <script>
         let currentActiveSampleId = null;
@@ -239,18 +270,32 @@
             if (isProcessingScan) return;
             isProcessingScan = true;
 
-            fetch('{{ url("/distributor/process-scan") }}', {
+            fetch("{{ url('/distributor/process-scan') }}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json', // Paksa Laravel merespon JSON
                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
                 },
                 body: JSON.stringify({ keyword: code })
             })
-            .then(response => response.json())
+            .then(async response => {
+                // Cek apakah respon yang kembali benar-benar berformat JSON
+                const isJson = response.headers.get('content-type')?.includes('application/json');
+                const data = isJson ? await response.json() : null;
+
+                // Jika HTTP Status Error (misal 404 / 500)
+                if (!response.ok) {
+                    const errorMsg = data?.message || `Terjadi kesalahan server (Status: ${response.status})`;
+                    return Promise.reject(errorMsg);
+                }
+
+                return data;
+            })
             .then(res => {
                 isProcessingScan = false;
-                if (res.success) {
+
+                if (res && res.success) {
                     const sample = res.sample;
 
                     const emptyRow = document.getElementById('empty-row');
@@ -275,7 +320,7 @@
                             </td>
                             <td class="px-4 py-3 text-center">
                                 <div class="flex items-center justify-center gap-2">
-                                    <select class="text-xs rounded border-gray-300 py-1 px-2 focus:ring-blue-500 focus:border-blue-500" onchange="updateSampleStatus(${sample.id}, this.value)">
+                                    <select id="status-select-${sample.id}" class="text-xs rounded border-gray-300 py-1 px-2 focus:ring-blue-500 focus:border-blue-500" onchange="updateSampleStatus(${sample.id}, this.value)">
                                         <option value="" disabled>-- Ubah Status --</option>
                                         <option value="received" selected>Received (Diterima)</option>
                                         <option value="in_progress">In Progress (Pengujian)</option>
@@ -290,33 +335,39 @@
                         `;
                         tbody.insertBefore(newRow, tbody.firstChild);
                     }
+
                     showToast(`Sampel ${sample.sample_code} berhasil ditambahkan!`);
+                    document.getElementById('manual_code').value = '';
                 } else {
-                    showToast(res.message || 'Sampel tidak ditemukan.', true);
+                    showToast(res?.message || 'Sampel tidak ditemukan.', true);
                 }
             })
             .catch(err => {
                 isProcessingScan = false;
-                console.error(err);
-                showToast('Terjadi kesalahan server saat memproses scan.', true);
+                console.error('Scan Process Error:', err);
+                showToast(typeof err === 'string' ? err : 'Terjadi kesalahan server saat memproses scan.', true);
             });
         }
 
         function updateSampleStatus(sampleId, newStatus) {
-            fetch(`/distributor/samples/${sampleId}/update-status`, {
+            fetch(`{{ url('/distributor/samples') }}/${sampleId}/update-status`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json', // TAMBAHKAN INI agar Laravel mengembalikan response JSON
                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
                 },
                 body: JSON.stringify({ status: newStatus })
             })
-            .then(res => {
-                if (!res.ok) throw new Error("Route tidak ditemukan atau server error");
-                return res.json();
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.message || "Route tidak ditemukan atau server error");
+                }
+                return data;
             })
             .then(res => {
-                if (res.success) {
+                if (res.success || res.status === 'success') {
                     const badge = document.getElementById(`status-badge-${sampleId}`);
                     if (badge) {
                         let label = newStatus;
@@ -340,6 +391,9 @@
                         badge.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${bgClass}`;
                     }
                     
+                    const tableSelect = document.getElementById(`status-select-${sampleId}`);
+                    if (tableSelect) tableSelect.value = newStatus;
+
                     const modalStatusText = document.getElementById('modal-status-text');
                     if (modalStatusText) modalStatusText.innerText = newStatus;
 
@@ -350,55 +404,91 @@
             })
             .catch(err => {
                 console.error(err);
-                showToast('Gagal memperbarui status. Periksa koneksi/route.', true);
+                showToast(err.message || 'Gagal memperbarui status. Periksa koneksi/route.', true);
             });
         }
         
         function showDetailModal(sampleId) {
-            currentActiveSampleId = sampleId;
+            const url = `/distributor/samples/${sampleId}/detail`;
 
-            fetch(`/distributor/samples/${sampleId}/detail`)
-            .then(res => {
-                if (!res.ok) throw new Error("Gagal mengambil data dari server");
-                return res.json();
+            fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
             })
-            .then(res => {
-                if (res.success) {
-                    const data = res.data;
+            .then(async res => {
+                const data = await res.json().catch(() => null);
+                if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+                return data;
+            })
+            .then(data => {
+                if (data && data.success) {
+                    const sample = data.sample;
 
-                    document.getElementById('modal-sample-code').innerText = data.sample_code || '-';
-                    document.getElementById('modal-status-text').innerText = data.current_status || '-';
-                    document.getElementById('modal-applicant-name').innerText = data.applicant_name || '-';
-                    document.getElementById('modal-applicant-phone').innerText = data.applicant_phone || '-';
-                    document.getElementById('modal-sample-name').innerText = data.sample_name || '-';
-                    document.getElementById('modal-quantity').innerText = (data.quantity || 1) + ' Wadah';
-                    document.getElementById('modal-location').innerText = data.location_origin || '-';
+                    // 1. Informasi Utama
+                    document.getElementById('modal-sample-code').innerText = sample.sample_code || '-';
+                    document.getElementById('modal-status-text').innerText = sample.current_status ? sample.current_status.toUpperCase() : '-';
+                    document.getElementById('modal-applicant-name').innerText = sample.applicant_name || '-';
+                    document.getElementById('modal-applicant-phone').innerText = sample.applicant_phone || '-';
                     
-                    const modalSelect = document.getElementById('modal-select-status');
-                    if (modalSelect) modalSelect.value = data.current_status;
+                    // FIX JENIS SAMPEL: Baca sample_type_name (atau sample_type / sample_name)
+                    document.getElementById('modal-sample-name').innerText = sample.sample_type_name || sample.sample_type || sample.sample_name || '-';
+                    
+                    document.getElementById('modal-quantity').innerText = (sample.total_quantity || 1) + ' Wadah';
+                    document.getElementById('modal-location').innerText = sample.origin_location || '-';
 
-                    const paramList = document.getElementById('modal-parameter-list');
-                    paramList.innerHTML = '';
-                    if (data.services && data.services.length > 0) {
-                        data.services.forEach(s => {
-                            const li = document.createElement('li');
-                            li.innerText = '• ' + (s.service_name || 'Parameter Pengujian');
-                            paramList.appendChild(li);
-                        });
-                    } else {
-                        paramList.innerHTML = '<li>• Parameter Pengujian Standar</li>';
+                    // Set Pilihan Status Select
+                    const selectStatus = document.getElementById('modal-select-status');
+                    if (selectStatus) selectStatus.value = sample.current_status || 'received';
+
+                    const btnSave = document.getElementById('btn-save-modal-status');
+                    if (btnSave) {
+                        btnSave.onclick = function() {
+                            updateSampleStatus(sample.id, selectStatus.value);
+                        };
                     }
 
-                    document.getElementById('detailSampleModal').classList.remove('hidden');
+                    // FIX PARAMETER PENGUJIAN: Render list dari data.services
+                    // Render Parameter Pengujian
+                    const paramList = document.getElementById('modal-parameter-list');
+                    if (paramList) {
+                        paramList.innerHTML = '';
+                        
+                        if (data.services && data.services.length > 0) {
+                            data.services.forEach(item => {
+                                const li = document.createElement('li');
+                                li.className = 'flex justify-between items-center py-1 font-medium';
+                                li.innerHTML = `
+                                    <span>• ${item.service_name}</span>
+                                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">
+                                        Rp ${Number(item.price_at_time || 0).toLocaleString('id-ID')}
+                                    </span>
+                                `;
+                                paramList.appendChild(li);
+                            });
+                        } else {
+                            paramList.innerHTML = '<li class="text-amber-600 text-xs py-1 italic">Belum ada parameter pengujian yang dipilih untuk sampel ini.</li>';
+                        }
+                    }
+
+                    // Tampilkan Modal
+                    const modal = document.getElementById('detailSampleModal');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                        modal.classList.add('flex');
+                    }
                 } else {
-                    showToast('Data detail sampel tidak ditemukan.', true);
+                    showToast(data?.message || 'Gagal memuat detail sampel.', true);
                 }
             })
             .catch(err => {
-                console.error(err);
-                showToast('Gagal memuat data dari server.', true);
+                console.error('Detail Fetch Error:', err);
+                showToast(err.message, true);
             });
         }
+
+
 
         function closeModal() {
             document.getElementById('detailSampleModal').classList.add('hidden');

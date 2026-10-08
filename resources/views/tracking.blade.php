@@ -26,32 +26,6 @@
 
     <main class="max-w-4xl mx-auto px-4 py-8 w-full flex-grow">
         
-        <!-- Form Cari Sampel -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
-            <form action="{{ route('tracking.search') }}" method="POST" class="space-y-3">
-                @csrf
-                <label for="code" class="block text-sm font-semibold text-slate-700">
-                    Masukkan Kode Sampel atau Kode Pengajuan:
-                </label>
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <div class="relative flex-grow">
-                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400"></i>
-                        <input 
-                            type="text" 
-                            name="code" 
-                            id="code" 
-                            value="{{ request('code', $code ?? '') }}" 
-                            placeholder="Contoh: SMP-20260910-2936" 
-                            class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-800 font-mono text-sm"
-                            required
-                        >
-                    </div>
-                    <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-search"></i> Lacak Sampel
-                    </button>
-                </div>
-            </form>
-        </div>
 
         <!-- STATE HASIL PENCARIAN -->
         @if($code && !$sample)

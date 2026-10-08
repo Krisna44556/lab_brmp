@@ -10,6 +10,7 @@ use App\Http\Controllers\GuestRequestController;
 use App\Services\WhatsappService;
 use App\Http\Controllers\ExpeditionController;
 use App\Http\Controllers\SampleRequestController; 
+use App\Http\Controllers\PublicSampleController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -51,13 +52,19 @@ Route::middleware('auth')->group(function () {
 
 // Distributor Routes (Digabung menjadi 1 grup)
 Route::middleware(['auth', 'role:distributor'])->prefix('distributor')->group(function () {
-    Route::get('/dashboard', [DistributorLabController::class, 'index'])->name('distributor.dashboard');
-    Route::get('/sample/{code}', [DistributorLabController::class, 'showByCode'])->name('distributor.sample.show');
+    // 1. Route Halaman Utama Dashboard
+    Route::match(['get', 'post'], '/dashboard', [DistributorLabController::class, 'index'])->name('distributor.dashboard');
+    
+    // 2. Route Scan (POST AJAX)
     Route::post('/process-scan', [DistributorLabController::class, 'processScan'])->name('distributor.process_scan');
     
-    // Route Detail & Update Status (Sesuai panggilan JS)
-    Route::get('/samples/{id}/detail', [DistributorLabController::class, 'getSampleDetail'])->name('distributor.samples.detail');
-    Route::post('/samples/{id}/update-status', [DistributorLabController::class, 'updateStatus'])->name('distributor.samples.update-status');
+    // 3. Route Detail & Status Update
+    Route::get('/samples/{id}/detail', [App\Http\Controllers\DistributorLabController::class, 'getDetail'])->name('samples.detail');
+    Route::post('/samples/{id}/update-status', [DistributorLabController::class, 'updateStatus'])->name('distributor.sample.update_status');
+    
+    // 4. Route Cari Berdasarkan Kode (Opsional - Beri batasan regex agar tidak bentrok)
+    Route::get('/sample/{code}', [DistributorLabController::class, 'showByCode'])->name('distributor.sample.show');
+    
 });
 
 // User & Guest Request Routes
@@ -66,12 +73,17 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/user/request/store', [UserRequestController::class, 'store'])->name('user.store_request');
 });
 
-// Route simpan pendaftaran online
-Route::post('/sample-request/store', [SampleRequestController::class, 'store'])->name('sample-request.store');
 
-Route::get('/pengajuan-online', [GuestRequestController::class, 'create'])->name('guest.create_request');
-Route::post('/pengajuan-online', [GuestRequestController::class, 'store'])->name('guest.store_request');
 
+//oute pendaftaran via Web tanpa middleware CSRF
+Route::post('/api/sample-request/store', [SampleRequestController::class, 'store'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]); 
+
+Route::get('/pendaftaran', [GuestRequestController::class, 'create'])->name('pendaftaran.create');
+Route::post('/pendaftaran', [GuestRequestController::class, 'store'])->name('pendaftaran.store');
+
+// Route AJAX Parameter (WAJIB PUBLIK agar bisa diakses JS saat belum login)
+Route::get('/get-parameters-by-lab/{labId}', [GuestRequestController::class, 'getParametersByLab']);
 
 Route::get('/tracking', [GuestRequestController::class, 'showTrackingForm'])->name('tracking.index');
 
@@ -85,5 +97,27 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/expedition/check-cost', [ExpeditionController::class, 'checkCost'])->name('expedition.check_cost');
     Route::post('/expedition/update-tracking/{id}', [ExpeditionController::class, 'updateTracking'])->name('expedition.update_tracking');
 });
+
+Route::get('/pendaftaran', function () {
+    return view('frontend.pendaftaran');
+});
+
+Route::get('/', function () {
+    return view('frontend.index');
+});
+
+// 2. Route untuk memproses simpan data dari FE
+Route::post('/api/sample-request/store', [SampleRequestController::class, 'store'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
+
+    // Route untuk mengambil parameter secara umum/publik
+Route::get('/public/parameters', [PublicSampleController::class, 'getParameters']);
+
+// Route untuk menyimpan formulir pengajuan
+Route::post('/public/sample-request/store', [PublicSampleController::class, 'store']);
+
+Route::get('/get-parameters-by-lab/{lab}', [PublicSampleController::class, 'getParameters']);
+
+
 
 require __DIR__.'/auth.php';

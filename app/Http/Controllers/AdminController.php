@@ -8,23 +8,19 @@ use App\Models\User;
 use App\Models\LabService;
 use App\Models\RequestServiceItem;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Http; // 1. Tambahkan ini untuk panggil Fonnte API
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
-
 
 class AdminController extends Controller
 {
     // 1. Halaman Utama Dashboard Admin
     public function index(Request $request)
     {
-        // 1. Inisialisasi Query SampleRequest
         $query = SampleRequest::with(['user', 'samples']);
 
-        // 2. Filter berdasarkan Kode Request / Kode Sampel / Nama Pemohon jika ada pencarian
         if ($request->filled('code') || $request->filled('search')) {
             $search = trim($request->input('code', $request->input('search')));
 
@@ -39,23 +35,21 @@ class AdminController extends Controller
             });
         }
 
-        // 3. Paginate 10 data & pertahankan query string di URL
-        $requests = $query->latest()->paginate(5)->appends($request->query());
+        $requests = SampleRequest::with('samples')->orderBy('id', 'desc')->paginate(5);
 
-        // 4. Hitung Stat Counter
         $pendingCount = SampleRequest::where('payment_status', 'pending')->count();
         $verifiedCount = SampleRequest::where('payment_status', 'verified')->count();
 
         return view('admin.dashboard', compact('pendingCount', 'verifiedCount', 'requests'));
     }
 
-    // 2. Step 1: Form Pilih Laboratorium (Biologi, Kimia, Tanah)
+    // 2. Step 1: Form Pilih Laboratorium
     public function selectLab()
     {
         return view('admin.select-lab');
     }
 
-    // 3. Step 2: Form Input Parameter & Data Pemohon berdasarkan Lab yang Dipilih
+    // 3. Step 2: Form Input Parameter & Data Pemohon
     public function create(Request $request)
     {
         $labType = $request->query('lab_type', 'tanah');
@@ -69,25 +63,24 @@ class AdminController extends Controller
         return view('admin.create', compact('labType', 'services'));
     }
 
-    // 4. Simpan Data Permohonan (POST Step 2)
+    // 4. Simpan Data Permohonan Admin (Multi-Sample Support)
     public function storeRequest(Request $request)
     {
-        // Validasi Input Form
         $request->validate([
-            'lab_type'        => 'required|string',
-            'applicant_name'  => 'required|string|max:255',
-            'phone_number'    => 'required|string|max:20',
-            'sample_type'     => 'required|string',
-            'sample_quantity' => 'required|integer|min:1',
-            'services'        => 'required|array|min:1',
+            'lab_type'       => 'required|string',
+            'applicant_name' => 'required|string|max:255',
+            'phone_number'   => 'required|string|max:20',
+            'samples'        => 'required|array|min:1',
+            'samples.*.sample_name' => 'required|string|max:255',
+            'samples.*.services'    => 'required|array|min:1',
         ], [
-            'services.required' => 'Pilih minimal satu parameter pengujian!',
+            'samples.required' => 'Minimal harus menambahkan satu wadah sampel!',
         ]);
 
         $createdRequestCode = null;
 
         DB::transaction(function () use ($request, &$createdRequestCode) {
-            // Simpan / Cari User Pemohon
+            // A. Simpan / Cari User Pemohon
             $user = User::firstOrCreate(
                 ['phone_number' => $request->phone_number],
                 [
@@ -101,57 +94,73 @@ class AdminController extends Controller
             if ($user->name !== $request->applicant_name) {
                 $user->update(['name' => $request->applicant_name]);
             }
-            
-            // Hitung Total Biaya
-            $selectedServices = LabService::whereIn('id', $request->services)->get();
-            $totalPrice = $selectedServices->sum('price') * $request->sample_quantity;
 
-            // Simpan Header Permohonan Pengujian
+            $requestCode = 'REQ-' . date('Ymd') . '-' . rand(100, 999);
+
+            // B. Simpan Header Permohonan
             $sampleRequest = SampleRequest::create([
                 'user_id'         => $user->id,
-                'request_code'    => 'REQ-' . date('Ymd') . '-' . rand(100, 999),
-                'sample_type'     => $request->sample_type,
-                'sample_quantity' => $request->sample_quantity,
+                'pemohon_name'    => $request->applicant_name,
+                'lab_type'        => $request->lab_type,
+                'phone_number'    => $request->phone_number,
+                'request_code'    => $requestCode,
+                'sample_type'     => $request->samples[0]['sample_name'] ?? 'Umum',
+                'sample_quantity' => count($request->samples),
                 'village'         => $request->village,
                 'district'        => $request->district,
                 'regency'         => $request->regency,
                 'province'        => $request->province,
                 'testing_purpose' => $request->testing_purpose,
-                'total_price'     => $totalPrice,
+                'total_price'     => 0,
                 'payment_status'  => 'verified',
+                'status'          => 0,
             ]);
 
             $createdRequestCode = $sampleRequest->request_code;
+            $grandTotal = 0;
 
-            // Simpan Item Layanan
-            foreach ($selectedServices as $service) {
-                RequestServiceItem::create([
+            // C. Loop Setiap Wadah/Sampel Fisik
+            foreach ($request->samples as $index => $sampleData) {
+
+                $sampleCode = 'SMP-' . date('Ymd') . '-' . rand(1000, 9999);
+
+                $sample = Sample::create([
                     'sample_request_id' => $sampleRequest->id,
-                    'lab_service_id'    => $service->id,
-                    'quantity'          => $request->sample_quantity,
-                    'price_at_time'     => $service->price,
+                    'sample_code'       => $sampleCode,
+                    'sample_name'       => $sampleData['sample_name'],
+                    'current_status'    => 'registered',
                 ]);
+
+                // Loop Parameter Uji Khusus Wadah Ini
+                foreach ($sampleData['services'] as $serviceData) {
+                    $serviceId = is_array($serviceData) ? $serviceData['lab_service_id'] : $serviceData;
+                    $quantity  = is_array($serviceData) ? ($serviceData['quantity'] ?? 1) : 1;
+
+                    $labService = LabService::findOrFail($serviceId);
+                    $price = $labService->price;
+
+                    RequestServiceItem::create([
+                        'sample_id'      => $sampleRequest->id, // Menggunakan ID dari sample_requests (misal: 23)
+                        'lab_service_id' => $labService->id,
+                        'quantity'       => $quantity,
+                        'price_at_time'  => $price,
+                    ]);
+
+                    $grandTotal += ($price * $quantity);
+                }
             }
 
-            // Generate Sampel Fisik
-            for ($i = 1; $i <= $request->sample_quantity; $i++) {
-                Sample::create([
-                    'sample_request_id' => $sampleRequest->id,
-                    'sample_code'       => 'SMP-' . date('Ymd') . '-' . rand(1000, 9999),
-                    'sample_name'       => 'Sampel ' . $request->sample_type . ' #' . $i,
-                    'status'            => 'Diterima Distributor',
-                ]);
-            }
+            // Update Total Biaya Keseluruhan
+            $sampleRequest->update(['total_price' => $grandTotal]);
         });
 
-        // 2. KIRIM WHATSAPP OTOMATIS VIA FONNTE
+        // Kirim WhatsApp Otomatis via Fonnte
         try {
             $message = "Halo *" . $request->applicant_name . "*,\n\n";
             $message .= "Permohonan pengujian sampel Anda telah *BERHASIL TERDAFTAR* di Admin BRMP Laboratorium.\n\n";
             $message .= "📌 *Detail Permohonan:*\n";
             $message .= "• Kode Permohonan: *" . $createdRequestCode . "*\n";
-            $message .= "• Jenis Sampel: " . $request->sample_type . "\n";
-            $message .= "• Jumlah Sampel: " . $request->sample_quantity . "\n\n";
+            $message .= "• Jumlah Sampel: " . count($request->samples) . " Wadah\n\n";
             $message .= "Anda dapat melacak status progres sampel Anda secara real-time melalui link berikut:\n";
             $message .= url('/tracking') . "?code=" . $createdRequestCode . "\n\n";
             $message .= "Terima kasih,\n*BRMP Laboratorium*";
@@ -163,7 +172,7 @@ class AdminController extends Controller
                 'message' => $message,
             ]);
         } catch (\Exception $e) {
-            \Log::error('Fonnte WA Error saat storeRequest: ' . $e->getMessage());
+            Log::error('Fonnte WA Error saat storeRequest: ' . $e->getMessage());
         }
 
         return redirect()->route('admin.dashboard')->with('success', 'Permohonan Pengujian Berhasil Disimpan & WA Notifikasi Terkirim!');
@@ -172,14 +181,14 @@ class AdminController extends Controller
     // 5. Detail Request
     public function showRequest($id)
     {
-        $sampleRequest = SampleRequest::with(['user', 'items.labService'])->findOrFail($id);
+        $sampleRequest = SampleRequest::with(['user', 'samples.serviceItems.labService'])->findOrFail($id);
         return view('admin.request_show', compact('sampleRequest'));
     }
-    
+        
     // 6. Generate QR Code
     public function generateQrCode($id)
     {
-        $sampleRequest = SampleRequest::with(['user', 'items.labService', 'samples'])->findOrFail($id);
+        $sampleRequest = SampleRequest::with(['user', 'samples'])->findOrFail($id);
         $sample = $sampleRequest->samples->first();
         $qrCodeData = $sample?->sample_code ?? $sampleRequest->request_code;
 
@@ -192,15 +201,6 @@ class AdminController extends Controller
         $requestData = SampleRequest::findOrFail($id);
         $requestData->update(['payment_status' => $status]);
 
-        if ($status === 'verified') {
-            Sample::create([
-                'sample_request_id' => $requestData->id,
-                'sample_code'       => 'SMPL-' . date('Ymd') . '-' . rand(100, 999),
-                'sample_name'       => 'Sampel Pengujian ' . $requestData->request_code,
-                'current_status'    => 'registered',
-            ]);
-        }
-
         return redirect()->back()->with('success', 'Status pembayaran berhasil diperbarui!');
     }
 
@@ -208,7 +208,7 @@ class AdminController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $statusInput = strtolower(str_replace(' ', '_', trim($request->status)));
-        $sample = Sample::with(['sampleRequest.user'])->find($id);
+        $sample = Sample::find($id);
 
         if (!$sample) {
             if ($request->wantsJson()) {
@@ -217,35 +217,7 @@ class AdminController extends Controller
             return redirect()->back()->with('error', 'Data sampel tidak ditemukan.');
         }
 
-        $sampleData = ['updated_at' => now()];
-        if (Schema::hasColumn('samples', 'current_status')) {
-            $sampleData['current_status'] = $statusInput;
-        }
-        if (Schema::hasColumn('samples', 'status')) {
-            $sampleData['status'] = $statusInput;
-        }
-
-        if ($sample->sample_request_id) {
-            DB::table('samples')
-                ->where('sample_request_id', $sample->sample_request_id)
-                ->update($sampleData);
-
-            $requestData = ['updated_at' => now()];
-            if (Schema::hasColumn('sample_requests', 'current_status')) {
-                $requestData['current_status'] = $statusInput;
-            }
-            if (Schema::hasColumn('sample_requests', 'status')) {
-                $requestData['status'] = $statusInput;
-            }
-
-            if (count($requestData) > 1) {
-                DB::table('sample_requests')
-                    ->where('id', $sample->sample_request_id)
-                    ->update($requestData);
-            }
-        } else {
-            DB::table('samples')->where('id', $id)->update($sampleData);
-        }
+        $sample->update(['current_status' => $statusInput]);
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
@@ -264,12 +236,7 @@ class AdminController extends Controller
 
         $data = $requests->map(function ($req) {
             $sample = $req->samples->first();
-
-            $rawStatus = $sample?->current_status 
-                    ?? $sample?->status 
-                    ?? $req->current_status 
-                    ?? $req->status 
-                    ?? 'pending';
+            $rawStatus = $sample?->current_status ?? 'pending';
 
             return [
                 'id'     => $req->id,
@@ -280,8 +247,93 @@ class AdminController extends Controller
         return response()->json($data);
     }
 
-    public function getStatusRealtime()
+    // 10. Simpan Pendaftaran Offline
+    public function storeOffline(Request $request)
     {
-        return $this->statusRealtime();
+        $request->validate([
+            'user_id'       => 'required_without:pemohon_name',
+            'pemohon_name'  => 'required_without:user_id|string|max:255',
+            'phone_number'  => 'required_without:user_id|string|max:20',
+            'lab_type'      => 'required|string',
+            'samples'       => 'required|array|min:1',
+            'samples.*.sample_name' => 'required|string|max:255',
+            'samples.*.services'    => 'required|array|min:1',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            if ($request->user_id) {
+                $user = User::findOrFail($request->user_id);
+            } else {
+                $user = User::firstOrCreate(
+                    ['phone_number' => $request->phone_number],
+                    [
+                        'name'     => $request->pemohon_name,
+                        'email'    => 'user_' . time() . rand(10, 99) . '@brmp.com',
+                        'password' => Hash::make('password123'),
+                        'role'     => 'user',
+                    ]
+                );
+            }
+
+            $requestCode = 'REQ-' . date('Ymd') . '-' . rand(100, 999);
+
+            $sampleRequest = SampleRequest::create([
+                'user_id'         => $user->id,
+                'pemohon_name'    => $user->name,
+                'phone_number'    => $user->phone_number,
+                'lab_type'        => $request->lab_type,
+                'sample_type'     => $request->samples[0]['sample_name'] ?? 'Umum',
+                'sample_quantity' => count($request->samples),
+                'request_code'    => $requestCode,
+                'payment_proof'   => 'Bayar di Kasir (Offline)',
+                'payment_status'  => 'verified',
+                'village'         => $request->village,
+                'district'        => $request->district,
+                'regency'         => $request->regency,
+                'province'        => $request->province,
+                'testing_purpose' => $request->testing_purpose,
+                'total_price'     => 0,
+                'status'          => 1,
+            ]);
+
+            $grandTotal = 0;
+
+            foreach ($request->samples as $index => $sampleData) {
+                $sample = Sample::create([
+                    'sample_request_id' => $sampleRequest->id,
+                    'sample_code'       => $requestCode . '-S' . ($index + 1),
+                    'sample_name'       => $sampleData['sample_name'],
+                    'current_status'    => 'received',
+                ]);
+
+                foreach ($sampleData['services'] as $serviceData) {
+                    $labServiceId = is_array($serviceData) ? $serviceData['lab_service_id'] : $serviceData;
+                    $quantity     = is_array($serviceData) ? ($serviceData['quantity'] ?? 1) : 1;
+
+                    $labService = LabService::findOrFail($labServiceId);
+                    $price = $labService->price;
+
+                    RequestServiceItem::create([
+                        'sample_id'      => $sampleRequest->id,
+                        'lab_service_id' => $labService->id,
+                        'quantity'       => $quantity,
+                        'price_at_time'  => $price,
+                    ]);
+
+                    $grandTotal += ($price * $quantity);
+                }
+            }
+
+            $sampleRequest->update(['total_price' => $grandTotal]);
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Pendaftaran offline berhasil disimpan! Kode Request: ' . $requestCode);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal menyimpan: ' . $e->getMessage());
+        }
     }
 }

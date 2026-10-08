@@ -2,23 +2,25 @@
 
 namespace App\Models;
 
-
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Sample extends Model
 {
-    use HasFactory;
-
-    protected $fillable = [
-        'sample_request_id',
-        'sample_code',
-        'sample_name',
-        'current_status',
-    ];
+    protected $guarded = ['id'];
 
     public function sampleRequest()
     {
-        return $this->belongsTo(SampleRequest::class);
+        return $this->belongsTo(SampleRequest::class, 'sample_request_id');
+    }
+
+    // RELASI BARU: 1 Sampel punya banyak item parameter uji
+    public function serviceItems()
+    {
+        return $this->hasMany(RequestServiceItem::class, 'sample_id');
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(SampleLog::class);
     }
 }

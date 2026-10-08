@@ -13,10 +13,11 @@ return new class extends Migration
     {
         Schema::create('request_service_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sample_request_id')->constrained()->onDelete('cascade');
-            $table->foreignId('lab_service_id')->constrained()->onDelete('cascade');
+            // Ganti sample_request_id menjadi sample_id
+            $table->foreignId('sample_id')->constrained('samples')->onDelete('cascade');
+            $table->foreignId('lab_service_id')->constrained('lab_services')->onDelete('cascade');
             $table->integer('quantity')->default(1);
-            $table->decimal('price_at_time', 12, 2); // Menyimpan harga saat transaksi
+            $table->decimal('price_at_time', 12, 2);
             $table->timestamps();
         });
     }

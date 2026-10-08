@@ -65,7 +65,7 @@
                             @endif
                         </form>
                     </div>   
-
+                
                 <table class="min-w-full border-collapse border border-gray-200">
                     <thead>
                         <tr class="bg-gray-100">
@@ -78,64 +78,96 @@
                     </thead>
                     <tbody>
                         @forelse($requests as $req)
-                        <tr class="border-b">
-                            <td class="border p-2 text-center">{{ $req->request_code }}</td>
-                            <td class="border p-2">{{ $req->user->name }}</td>
+                        <tr class="border-b hover:bg-gray-50 transition-colors">
+                            <!-- 1. KODE REQUEST -->
+                            <td class="border p-2 text-center font-bold text-blue-600">
+                                {{ $req->request_code }}
+                            </td>
+
+                            <!-- 2. NAMA PEMOHON & JUMLAH WADAH -->
+                            <td class="border p-2">
+                                <div class="font-semibold text-gray-800">
+                                    {{ $req->pemohon_name ?? $req->user->name ?? '-' }}
+                                </div>
+                                <div class="mt-1">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                                        {{ $req->samples->count() }} Wadah Sampel
+                                    </span>
+                                </div>
+                            </td>
+
+                            <!-- 3. STATUS PEMBAYARAN -->
                             <td class="border p-2 text-center">
-                                <span class="px-2 py-1 rounded text-white text-xs {{ $req->payment_status == 'verified' ? 'bg-green-500' : ($req->payment_status == 'rejected' ? 'bg-red-500' : 'bg-yellow-500') }}">
+                                <span class="px-2.5 py-1 rounded-full text-white text-xs font-bold {{ $req->payment_status == 'verified' ? 'bg-green-600' : ($req->payment_status == 'rejected' ? 'bg-red-600' : 'bg-yellow-500') }}">
                                     {{ ucfirst($req->payment_status) }}
                                 </span>
                             </td>
 
-                            <td class="p-3 text-center">
+                            <!-- 4. STATUS PROGRESS PENGUJIAN -->
+                            <td class="border p-3 text-center">
                                 <div id="status-badge-{{ $req->id }}">
-                                @php
-                                    // Ambil sampel pertama dari relasi
-                                    $s = $req->samples?->first();
-                                    
-                                    // Ambil status (cek di sampel dulu, lalu di req)
-                                    $rawStatus = $s?->current_status ?? $s?->status ?? $req->current_status ?? $req->status ?? 'pending';
-                                    
-                                    // Normalisasi format status
-                                    $status = strtolower(str_replace(' ', '_', trim($rawStatus)));
-                                @endphp
+                                    @php
+                                        // Ambil semua status sampel
+                                        $statuses = $req->samples->pluck('current_status')->map(fn($st) => strtolower(trim($st)))->toArray();
+                                        
+                                        if (in_array('issue', $statuses)) {
+                                            $finalStatus = 'issue';
+                                        } elseif (count($statuses) > 0 && array_key_exists('completed', array_count_values($statuses)) && array_count_values($statuses)['completed'] === count($statuses)) {
+                                            $finalStatus = 'completed';
+                                        } elseif (in_array('in_progress', $statuses)) {
+                                            $finalStatus = 'in_progress';
+                                        } elseif (in_array('received', $statuses)) {
+                                            $finalStatus = 'received';
+                                        } else {
+                                            $finalStatus = 'registered';
+                                        }
+                                    @endphp
 
-                                @if($status == 'completed' || $status == 'selesai')
-                                    <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800 border border-green-300">
-                                        ✔ Selesai
-                                    </span>
-                                @elseif($status == 'in_progress' || $status == 'in_progress')
-                                    <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-300">
-                                        🔬 In Progress
-                                    </span>
-                                @elseif($status == 'received' || $status == 'diterima_lab')
-                                    <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">
-                                        📦 Diterima Lab
-                                    </span>
-                                @elseif($status == 'issue' || $status == 'kendala')
-                                    <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 border border-red-300">
-                                        ⚠️ Kendala / Issue
-                                    </span>
-                                @else
-                                    <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-700 border border-gray-300">
-                                        ⏳ Menunggu Distributor
-                                    </span>
-                                @endif
+                                    @if($finalStatus == 'completed')
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800 border border-green-300">
+                                            ✔ Selesai
+                                        </span>
+                                    @elseif($finalStatus == 'in_progress')
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+                                            🔬 In Progress
+                                        </span>
+                                    @elseif($finalStatus == 'received')
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">
+                                            📦 Diterima Lab
+                                        </span>
+                                    @elseif($finalStatus == 'issue')
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 border border-red-300">
+                                            ⚠️ Kendala / Issue
+                                        </span>
+                                    @else
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-700 border border-gray-300">
+                                            ⏳ Menunggu Distributor
+                                        </span>
+                                    @endif
                                 </div>
                             </td>
 
-
+                            <!-- 5. AKSI -->
                             <td class="border p-2 text-center">
-                                    <a href="{{ route('admin.verify', [$req->id, 'verified']) }}" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">Setujui</a>
-                                    <a href="{{ route('admin.verify', [$req->id, 'rejected']) }}" class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700">Tolak</a>
-                                    <a href="{{ route('admin.qr_code', $req->id) }}" target="_blank" class="bg-gray-800 text-white text-xs px-2 py-1 rounded hover:bg-gray-700">
+                                <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                    <a href="{{ route('admin.verify', [$req->id, 'verified']) }}" class="bg-green-600 text-white px-2.5 py-1 rounded text-xs font-semibold hover:bg-green-700 transition-all">
+                                        Setujui
+                                    </a>
+                                    <a href="{{ route('admin.verify', [$req->id, 'rejected']) }}" class="bg-red-600 text-white px-2.5 py-1 rounded text-xs font-semibold hover:bg-red-700 transition-all">
+                                        Tolak
+                                    </a>
+                                    <a href="{{ route('admin.qr_code', $req->id) }}" target="_blank" class="bg-gray-800 text-white text-xs px-2.5 py-1 rounded font-semibold hover:bg-gray-700 transition-all flex items-center gap-1">
                                         🖨️ QR Code
                                     </a>
+                                </div>
                             </td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="4" class="border p-4 text-center text-gray-500">Belum ada data permohonan.</td>
+                            <td colspan="5" class="border p-6 text-center text-gray-500 font-medium">
+                                Belum ada data permohonan.
+                            </td>
                         </tr>
                         @endforelse
                     </tbody>
